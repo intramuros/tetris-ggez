@@ -1,0 +1,9 @@
+[package]
+name = "tetris-ggez"
+version = "0.1.0"
+authors = ["sesegma <sesegma@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+ggez = {git = "https://github.com/ggez/ggez"}
+rand = "*"
