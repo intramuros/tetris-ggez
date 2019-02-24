@@ -3,8 +3,12 @@ use ggez::{event, GameResult};
 mod game_state;
 mod tetromino;
 
-use crate::tetromino::SCREEN_SIZE;
+use crate::tetromino::{GRID_CELL_SIZE, GRID_SIZE};
 use game_state::*;
+const SCREEN_SIZE: (f32, f32) = (
+    (GRID_SIZE.0 as f32 + 5.0) * GRID_CELL_SIZE.0 as f32,
+    GRID_SIZE.1 as f32 * GRID_CELL_SIZE.1 as f32,
+);
 
 fn main() -> GameResult {
     let (ctx, events_loop) = &mut ggez::ContextBuilder::new("tetris", "me")

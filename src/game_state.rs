@@ -1,35 +1,37 @@
-// pub mod tetromino;
 use ggez::event::{KeyCode, KeyMods};
 use ggez::{event, graphics, Context, GameResult};
 use std::collections::HashSet;
 
 use crate::tetromino::*;
 use std::time::{Duration, Instant};
-const UPDATES_PER_SECOND: f32 = 8.0;
-
-const MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
 
 pub struct GameState {
-    base: HashSet<Segment>,
-    ghost_layer: Vec<Segment>,
+    base: Vec<Segment>,
+    ghost_layer: HashSet<Segment>,
     cur_fig: Tetromino,
     game_over: bool,
-    last_update: Instant,
+    fall_update: Instant,
+    points: u64,
+    updates_per_second: f32,
+    updates_fast: f32,
+    update_slow: f32,
 }
 
 impl GameState {
     pub fn new() -> Self {
-        let ghost_layer = (0..=GRID_SIZE.0)
-            .map(|x| Segment::new((x, GRID_SIZE.1 - 1).into()))
-            .collect();
-        println!("{:?}", ghost_layer);
-        let cur_fig = Tetromino::new(1.0);
+        // let ghost_layer = (0..=GRID_SIZE.0)
+        //     .map(|x| Segment::new((x, GRID_SIZE.1 - 1).into()))
+        //     .collect();
         Self {
-            base: HashSet::new(),
-            ghost_layer,
-            cur_fig: cur_fig,
+            base: Vec::new(),
+            ghost_layer: HashSet::new(),
+            cur_fig: Tetromino::new(),
             game_over: false,
-            last_update: Instant::now(),
+            fall_update: Instant::now(),
+            points: 0,
+            updates_per_second: 2.0,
+            updates_fast: 20.0,
+            update_slow: 1.0,
         }
     }
 
@@ -38,7 +40,7 @@ impl GameState {
             .cur_fig
             .body
             .iter()
-            .any(|elem| self.ghost_layer.contains(&elem))
+            .any(|elem| elem.y == GRID_SIZE.1 - 1 || self.ghost_layer.contains(&elem))
         {
             return true;
         }
@@ -47,66 +49,109 @@ impl GameState {
 
     fn update_ghost_layer(&mut self) {
         for seg in self.cur_fig.body.iter() {
-            self.ghost_layer.push(seg.add_ghost_layer());
+            self.ghost_layer.insert(seg.add_ghost_layer());
         }
     }
 
     fn hit_ceiling(&self) -> bool {
-        self.cur_fig.body.iter().any(|seg| seg.pos.y == 0 as i16)
+        self.cur_fig.body.iter().any(|seg| seg.y == 0 as i16)
             && self
                 .cur_fig
                 .body
                 .iter()
                 .any(|seg| self.ghost_layer.contains(&seg))
     }
+
+    fn burn_full_rows(&mut self) {
+        let mut burned = 0;
+        for y_coord in 0..GRID_SIZE.1 {
+            if self.base.iter().filter(|seg| seg.y == y_coord).count() == 10 {
+                burned += 1;
+                self.base.retain(|seg| seg.y != y_coord);
+                self.base = self
+                    .base
+                    .iter()
+                    .map(|seg| {
+                        // dbg!(&seg);
+                        if seg.y < y_coord {
+                            Segment::new((seg.x, seg.y + 1))
+                        } else {
+                            seg.clone()
+                        }
+                    })
+                    .collect();
+            }
+        }
+
+        if burned > 0 {
+            self.points += burned * 10;
+            self.ghost_layer = (0..GRID_SIZE.0)
+                .filter_map(|x| {
+                    match self
+                        .base
+                        .iter()
+                        .filter(|seg| seg.x == x)
+                        .min_by_key(|elem| elem.y)
+                    {
+                        Some(c) => Some(Segment::new((c.x, c.y - 1))),
+                        None => None,
+                    }
+                })
+                .collect();
+        }
+    }
+    fn accelerate(&mut self) {
+        if self.cur_fig.body.iter().any(|seg| seg.y > 1) && !self.cur_fig_landed() {
+            self.updates_per_second = self.updates_fast;
+        }
+    }
 }
 
 impl event::EventHandler for GameState {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
-        if Instant::now() - self.last_update >= Duration::from_millis(MILLIS_PER_UPDATE) {
-            if !self.game_over {
+        let millis_per_update: u64 = (1.0 / self.updates_per_second * 1000.0) as u64;
+        // if Instant::now() - self.move_update >= Duration::from_millis(60) && !self.game_over {
+        if Instant::now() - self.fall_update >= Duration::from_millis(millis_per_update) {
+            if self.hit_ceiling() {
+                println!("Hit ceiling");
+                self.game_over = true;
+            } else if self.cur_fig_landed() {
+                self.update_ghost_layer();
+                self.base.extend(self.cur_fig.clone_body());
+                self.burn_full_rows();
+                println!("{}", self.points);
+                // dbg!(&self.base[0].pos);
+                // dbg!(&self.ghost_layer);
+                self.updates_per_second = self.update_slow;
+                self.cur_fig = Tetromino::new();
+            } else {
                 self.cur_fig.update();
-                if GameState::hit_ceiling(&self) {
-                    println!("hit ceiling");
-                    self.game_over = true;
-                }
-                if GameState::cur_fig_landed(&self) {
-                    self.base.extend(self.cur_fig.copy_body());
-                    GameState::update_ghost_layer(self);
-                    self.cur_fig = Tetromino::new(1.0);
-                }
+                self.fall_update = Instant::now();
+                self.updates_per_second = self.update_slow;
             }
-            self.last_update = Instant::now();
+            // self.move_update = Instant::now();
         }
+        // }
         Ok(())
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
-        graphics::clear(ctx, [0.0, 1.0, 0.0, 1.0].into());
+        graphics::clear(ctx, [0.0, 0.0, 0.0, 1.0].into());
         self.cur_fig.draw(ctx)?;
 
         for seg in self.base.iter() {
             let rectangle = graphics::Mesh::new_rectangle(
                 ctx,
                 graphics::DrawMode::fill(),
-                seg.pos.into(),
+                seg.into(),
                 [1.0, 0.5, 0.0, 1.0].into(),
             )?;
             graphics::draw(ctx, &rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
         }
 
-        // for seg in self.ghost_layer.iter() {
-        //     let rectangle = graphics::Mesh::new_rectangle(
-        //         ctx,
-        //         graphics::DrawMode::fill(),
-        //         seg.pos.into(),
-        //         [1.0, 0.5, 0.2, 1.0].into(),
-        //     )?;
-        //     graphics::draw(ctx, &rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
-        // }
         graphics::present(ctx)?;
 
-        // ggez::timer::yield_now();
+        ggez::timer::yield_now();
 
         Ok(())
     }
@@ -118,8 +163,14 @@ impl event::EventHandler for GameState {
         _keymod: KeyMods,
         _repeat: bool,
     ) {
-        if let Some(dir) = Direction::from_keycode(keycode) {
-            self.cur_fig.move_to(&self.base, dir);
-        }
+        match keycode {
+            KeyCode::Left => self.cur_fig.move_to(Motion::Left, &self.base),
+            KeyCode::Right => self.cur_fig.move_to(Motion::Right, &self.base),
+            KeyCode::Up => self.cur_fig.move_to(Motion::RotateLeft, &self.base),
+            KeyCode::Down => self.cur_fig.move_to(Motion::RotateRight, &self.base),
+            KeyCode::D => self.accelerate(), //self.updates_per_second = self.updates_fast,
+            KeyCode::Escape => ggez::quit(_ctx),
+            _ => (),
+        };
     }
 }
