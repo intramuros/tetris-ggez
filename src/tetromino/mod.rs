@@ -1,12 +1,17 @@
 mod utils;
 
 use self::utils::body_generators;
+use ggez::graphics::Color;
 use ggez::{graphics, Context, GameResult};
+
+use ggez::graphics::WHITE;
 
 use rand::Rng;
 
 pub const GRID_SIZE: (i16, i16) = (10, 20);
-pub const GRID_CELL_SIZE: (i16, i16) = (32, 32);
+pub const GRID_CELL_SIZE: (i16, i16) = (26, 26);
+
+type ColorTuple = (u8, u8, u8, u8);
 
 impl From<&Segment> for graphics::Rect {
     fn from(seg: &Segment) -> Self {
@@ -27,19 +32,6 @@ pub enum Motion {
     RotateRight,
 }
 
-// impl Motion {
-//     pub fn from_keycode(key: KeyCode) -> Option<Motion> {
-//         match key {
-//             KeyCode::Left => Some(Motion::Left),
-//             KeyCode::Right => Some(Motion::Right),
-//             KeyCode::Up => Some(Motion::RotateRight),
-//             KeyCode::Down => Some(Motion::RotateLeft),
-//             KeyCode::D => Some(Motion::Down),
-//             _ => None,
-//         }
-//     }
-// }
-
 #[derive(Debug, Copy, Clone)]
 pub enum Shape {
     L,
@@ -55,24 +47,66 @@ pub enum Shape {
 pub struct Segment {
     pub x: i16,
     pub y: i16,
+    pub color: ColorTuple,
+}
+
+impl Default for Shape {
+    fn default() -> Self {
+        Shape::I
+    }
 }
 
 impl Segment {
-    pub fn new(pos: (i16, i16)) -> Self {
-        Self { x: pos.0, y: pos.1 }
+    pub fn new(pos: (i16, i16), color: ColorTuple) -> Self {
+        Self {
+            x: pos.0,
+            y: pos.1,
+            color,
+        }
     }
 
     pub fn add_ghost_layer(&self) -> Self {
         Self {
             x: self.x,
             y: self.y - 1,
+            color: (1, 1, 0, 255),
         }
     }
+
     fn right_neighbor(&self) -> Self {
-        Self::new((self.x + 1, self.y))
+        Self::new((self.x + 1, self.y), self.color)
     }
+
     pub fn left_neighbor(&self) -> Self {
-        Self::new((self.x - 1, self.y))
+        Self::new((self.x - 1, self.y), self.color)
+    }
+}
+
+impl From<i32> for Shape {
+    fn from(num: i32) -> Shape {
+        match num {
+            0 => Shape::L,
+            1 => Shape::O,
+            2 => Shape::S,
+            3 => Shape::Z,
+            4 => Shape::I,
+            5 => Shape::T,
+            _ => Shape::J,
+        }
+    }
+}
+
+impl From<&Shape> for ColorTuple {
+    fn from(shape: &Shape) -> Self {
+        match *shape {
+            Shape::L => (255, 128, 0, 255),
+            Shape::O => (255, 255, 0, 255),
+            Shape::S => (205, 0, 0, 255),
+            Shape::Z => (0, 205, 0, 255),
+            Shape::I => (0, 255, 255, 255),
+            Shape::T => (51, 0, 104, 255),
+            Shape::J => (0, 0, 153, 255),
+        }
     }
 }
 
@@ -82,10 +116,19 @@ pub struct Tetromino {
     // velocity: f32, // the speed of fall is probably better mananged by the system
 }
 
+impl From<Shape> for Tetromino {
+    fn from(shape: Shape) -> Self {
+        Self {
+            body: Tetromino::generate_body(&shape),
+            shape,
+        }
+    }
+}
+
 impl Tetromino {
     pub fn new() -> Self {
         let shape: Shape = Tetromino::generate_shape().unwrap_or(Shape::I);
-        // let shape = Shape::I;
+        // let shape = Shape::S;
         let body = Tetromino::generate_body(&shape);
         println!("generating tetromino: shape - {:?}", shape);
         Self { shape, body }
@@ -94,11 +137,13 @@ impl Tetromino {
     pub fn move_to(&mut self, dir: Motion, base: &Vec<Segment>) {
         match dir {
             Motion::Left => {
-                if self
-                    .body
-                    .iter()
-                    .all(|elem| elem.x > 0 && elem.y > -1 && !base.contains(&elem.left_neighbor()))
-                {
+                if self.body.iter().all(|elem| {
+                    elem.x > 0
+                        && elem.y > -1
+                        && !base
+                            .iter()
+                            .any(|b_elem| b_elem.x == (elem.x - 1) && b_elem.y == elem.y)
+                }) {
                     for seg in self.body.iter_mut() {
                         seg.x -= 1;
                     }
@@ -108,7 +153,9 @@ impl Tetromino {
                 if self.body.iter().all(|elem| {
                     elem.x < GRID_SIZE.0 - 1
                         && elem.y > -1
-                        && !base.contains(&elem.right_neighbor())
+                        && !base
+                            .iter()
+                            .any(|b_elem| b_elem.x == (elem.x + 1) && b_elem.y == elem.y)
                 }) {
                     for seg in self.body.iter_mut() {
                         seg.x += 1;
@@ -147,7 +194,7 @@ impl Tetromino {
                 ctx,
                 graphics::DrawMode::fill(),
                 seg.into(),
-                [1.0, 0.5, 0.0, 1.0].into(),
+                seg.color.into(),
             )?;
             graphics::draw(ctx, &rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
         }
@@ -181,7 +228,7 @@ impl Tetromino {
             Shape::J => body_generators::generate_j(),
         }
         .into_iter()
-        .map(Segment::new)
+        .map(|v| Segment::new(v, shape.into()))
         .collect()
     }
 
@@ -198,14 +245,14 @@ impl Tetromino {
             self.body = self
                 .body
                 .iter()
-                .map(|seg| Segment::new((seg.x - kick.x, seg.y)))
+                .map(|seg| Segment::new((seg.x - kick.x, seg.y), seg.color))
                 .collect();
         } else if self.body.iter().any(|seg| seg.x >= GRID_SIZE.0) {
             let kick = self.body.iter().max_by_key(|seg| seg.x).unwrap();
             self.body = self
                 .body
                 .iter()
-                .map(|seg| Segment::new((seg.x - (kick.x - GRID_SIZE.0 + 1), seg.y)))
+                .map(|seg| Segment::new((seg.x - (kick.x - GRID_SIZE.0 + 1), seg.y), seg.color))
                 .collect();
         }
     }
@@ -218,12 +265,14 @@ impl Tetromino {
             let new_body: Vec<Segment> = self
                 .body
                 .iter()
-                .map(|seg| Segment::new((-1 * (seg.y + y) - x, seg.x + x - y)))
+                .map(|seg| Segment::new((-1 * (seg.y + y) - x, seg.x + x - y), seg.color))
                 .collect();
-            if !new_body
-                .iter()
-                .any(|seg| base.contains(seg) || seg.y >= GRID_SIZE.1)
-            {
+            if !new_body.iter().any(|seg| {
+                seg.y >= GRID_SIZE.1
+                    || base
+                        .iter()
+                        .any(|b_elem| b_elem.x == seg.x && b_elem.y == seg.y)
+            }) {
                 self.body = new_body;
                 self.kickback();
             }
@@ -238,12 +287,14 @@ impl Tetromino {
             let new_body: Vec<Segment> = self
                 .body
                 .iter()
-                .map(|seg| Segment::new(((seg.y + y) - x, -1 * (seg.x + x) - y)))
+                .map(|seg| Segment::new(((seg.y + y) - x, -1 * (seg.x + x) - y), seg.color))
                 .collect();
-            if !new_body
-                .iter()
-                .any(|seg| base.contains(seg) || seg.y >= GRID_SIZE.1)
-            {
+            if !new_body.iter().any(|seg| {
+                seg.y >= GRID_SIZE.1
+                    || base
+                        .iter()
+                        .any(|b_elem| b_elem.x == seg.x && b_elem.y == seg.y)
+            }) {
                 self.body = new_body;
                 self.kickback();
             }

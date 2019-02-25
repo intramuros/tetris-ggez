@@ -1,6 +1,8 @@
 use ggez::event::{KeyCode, KeyMods};
+use ggez::graphics::Color;
 use ggez::{event, graphics, Context, GameResult};
-use std::collections::HashSet;
+use rand::Rng;
+use std::collections::{HashSet, VecDeque};
 
 use crate::tetromino::*;
 use std::time::{Duration, Instant};
@@ -8,6 +10,7 @@ use std::time::{Duration, Instant};
 pub struct GameState {
     base: Vec<Segment>,
     ghost_layer: HashSet<Segment>,
+    bag: VecDeque<Shape>,
     cur_fig: Tetromino,
     game_over: bool,
     fall_update: Instant,
@@ -22,29 +25,38 @@ impl GameState {
         // let ghost_layer = (0..=GRID_SIZE.0)
         //     .map(|x| Segment::new((x, GRID_SIZE.1 - 1).into()))
         //     .collect();
+        let mut rng = rand::thread_rng();
+        let bag: VecDeque<Shape> = (0..50).map(|_| rng.gen_range(0, 7).into()).collect();
         Self {
             base: Vec::new(),
             ghost_layer: HashSet::new(),
+            bag,
             cur_fig: Tetromino::new(),
             game_over: false,
             fall_update: Instant::now(),
             points: 0,
             updates_per_second: 2.0,
-            updates_fast: 20.0,
-            update_slow: 1.0,
+            updates_fast: 40.0,
+            update_slow: 1.5,
         }
     }
 
     fn cur_fig_landed(&self) -> bool {
-        if self
-            .cur_fig
-            .body
-            .iter()
-            .any(|elem| elem.y == GRID_SIZE.1 - 1 || self.ghost_layer.contains(&elem))
-        {
+        if self.cur_fig.body.iter().any(|elem| {
+            elem.y == GRID_SIZE.1 - 1
+                || self
+                    .ghost_layer
+                    .iter()
+                    .any(|g_elem| g_elem.x == elem.x && g_elem.y == elem.y)
+        }) {
             return true;
         }
         false
+    }
+
+    fn add_shape_to_bag(&mut self) {
+        let mut rng = rand::thread_rng();
+        self.bag.push_back(rng.gen_range(0, 7).into());
     }
 
     fn update_ghost_layer(&mut self) {
@@ -74,7 +86,7 @@ impl GameState {
                     .map(|seg| {
                         // dbg!(&seg);
                         if seg.y < y_coord {
-                            Segment::new((seg.x, seg.y + 1))
+                            Segment::new((seg.x, seg.y + 1), seg.color)
                         } else {
                             seg.clone()
                         }
@@ -84,7 +96,15 @@ impl GameState {
         }
 
         if burned > 0 {
-            self.points += burned * 10;
+            let bonus = match burned {
+                1 => 0,
+                2 => 5,
+                3 => 10,
+                4 => 15,
+                5 => 20,
+                _ => 25,
+            };
+            self.points += burned * 10 + bonus;
             self.ghost_layer = (0..GRID_SIZE.0)
                 .filter_map(|x| {
                     match self
@@ -93,13 +113,14 @@ impl GameState {
                         .filter(|seg| seg.x == x)
                         .min_by_key(|elem| elem.y)
                     {
-                        Some(c) => Some(Segment::new((c.x, c.y - 1))),
+                        Some(c) => Some(Segment::new((c.x, c.y - 1), c.color)),
                         None => None,
                     }
                 })
                 .collect();
         }
     }
+
     fn accelerate(&mut self) {
         if self.cur_fig.body.iter().any(|seg| seg.y > 1) && !self.cur_fig_landed() {
             self.updates_per_second = self.updates_fast;
@@ -123,7 +144,9 @@ impl event::EventHandler for GameState {
                 // dbg!(&self.base[0].pos);
                 // dbg!(&self.ghost_layer);
                 self.updates_per_second = self.update_slow;
-                self.cur_fig = Tetromino::new();
+                // self.cur_fig = Tetromino::new();
+                self.cur_fig = Tetromino::from(self.bag.pop_front().unwrap_or_default());
+                self.add_shape_to_bag();
             } else {
                 self.cur_fig.update();
                 self.fall_update = Instant::now();
@@ -137,17 +160,43 @@ impl event::EventHandler for GameState {
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
         graphics::clear(ctx, [0.0, 0.0, 0.0, 1.0].into());
+        let main_field = graphics::Rect::new_i32(
+            0,
+            0,
+            (GRID_CELL_SIZE.0 * GRID_SIZE.0) as i32,
+            (GRID_CELL_SIZE.1 * GRID_SIZE.1) as i32,
+        );
+        let rectangle = graphics::Mesh::new_rectangle(
+            ctx,
+            graphics::DrawMode::fill(),
+            main_field,
+            (32, 32, 32, 255).into(),
+        )?;
+        graphics::draw(ctx, &rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
         self.cur_fig.draw(ctx)?;
 
+        // draw the base
         for seg in self.base.iter() {
             let rectangle = graphics::Mesh::new_rectangle(
                 ctx,
                 graphics::DrawMode::fill(),
                 seg.into(),
-                [1.0, 0.5, 0.0, 1.0].into(),
+                seg.color.into(),
             )?;
             graphics::draw(ctx, &rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
         }
+        let title_position = ggez::mint::Point2 {
+            x: (GRID_SIZE.0 * GRID_CELL_SIZE.0 + GRID_CELL_SIZE.0) as f32,
+            y: GRID_SIZE.1 as f32 + 2.,
+        };
+        let point_position = ggez::mint::Point2 {
+            x: title_position.x + 16.,
+            y: title_position.y + 32.,
+        };
+        let points_text = graphics::Text::new("Points");
+        let points = graphics::Text::new(self.points.to_string());
+        graphics::draw(ctx, &points_text, (title_position,))?;
+        graphics::draw(ctx, &points, (point_position,))?;
 
         graphics::present(ctx)?;
 
@@ -167,8 +216,8 @@ impl event::EventHandler for GameState {
             KeyCode::Left => self.cur_fig.move_to(Motion::Left, &self.base),
             KeyCode::Right => self.cur_fig.move_to(Motion::Right, &self.base),
             KeyCode::Up => self.cur_fig.move_to(Motion::RotateLeft, &self.base),
-            KeyCode::Down => self.cur_fig.move_to(Motion::RotateRight, &self.base),
-            KeyCode::D => self.accelerate(), //self.updates_per_second = self.updates_fast,
+            // KeyCode::Down => self.cur_fig.move_to(Motion::RotateRight, &self.base),
+            KeyCode::Down => self.accelerate(), //self.updates_per_second = self.updates_fast,
             KeyCode::Escape => ggez::quit(_ctx),
             _ => (),
         };

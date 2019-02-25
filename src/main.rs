@@ -6,7 +6,7 @@ mod tetromino;
 use crate::tetromino::{GRID_CELL_SIZE, GRID_SIZE};
 use game_state::*;
 const SCREEN_SIZE: (f32, f32) = (
-    (GRID_SIZE.0 as f32 + 5.0) * GRID_CELL_SIZE.0 as f32,
+    (GRID_SIZE.0 as f32 + 6.0) * GRID_CELL_SIZE.0 as f32,
     GRID_SIZE.1 as f32 * GRID_CELL_SIZE.1 as f32,
 );
 
