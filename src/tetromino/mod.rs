@@ -1,10 +1,7 @@
 mod utils;
 
 use self::utils::body_generators;
-use ggez::graphics::Color;
 use ggez::{graphics, Context, GameResult};
-
-use ggez::graphics::WHITE;
 
 use rand::Rng;
 
@@ -13,6 +10,7 @@ pub const GRID_CELL_SIZE: (i16, i16) = (26, 26);
 
 type ColorTuple = (u8, u8, u8, u8);
 
+/// Trait implementation for turning a Segment into graphics Rectangle object
 impl From<&Segment> for graphics::Rect {
     fn from(seg: &Segment) -> Self {
         graphics::Rect::new_i32(
@@ -24,6 +22,7 @@ impl From<&Segment> for graphics::Rect {
     }
 }
 
+/// Represents a motion of a piece
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Motion {
     Left,
@@ -32,6 +31,7 @@ pub enum Motion {
     RotateRight,
 }
 
+/// Represents piece's shape, 7 classical tetromino shapes are used
 #[derive(Debug, Copy, Clone)]
 pub enum Shape {
     L,
@@ -43,6 +43,7 @@ pub enum Shape {
     J,
 }
 
+/// A segment is one out of four blocks making each piece
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Segment {
     pub x: i16,
@@ -50,6 +51,7 @@ pub struct Segment {
     pub color: ColorTuple,
 }
 
+/// Default shape is I
 impl Default for Shape {
     fn default() -> Self {
         Shape::I
@@ -57,6 +59,7 @@ impl Default for Shape {
 }
 
 impl Segment {
+    /// Create a new segment out of position coordinates and ascribe some color
     pub fn new(pos: (i16, i16), color: ColorTuple) -> Self {
         Self {
             x: pos.0,
@@ -65,6 +68,7 @@ impl Segment {
         }
     }
 
+    /// Add extra segment of top to signify a ghost cell
     pub fn add_ghost_layer(&self) -> Self {
         Self {
             x: self.x,
@@ -73,13 +77,13 @@ impl Segment {
         }
     }
 
-    fn right_neighbor(&self) -> Self {
-        Self::new((self.x + 1, self.y), self.color)
-    }
+    // fn right_neighbor(&self) -> Self {
+    //     Self::new((self.x + 1, self.y), self.color)
+    // }
 
-    pub fn left_neighbor(&self) -> Self {
-        Self::new((self.x - 1, self.y), self.color)
-    }
+    // fn left_neighbor(&self) -> Self {
+    //     Self::new((self.x - 1, self.y), self.color)
+    // }
 }
 
 impl From<i32> for Shape {
@@ -110,13 +114,14 @@ impl From<&Shape> for ColorTuple {
     }
 }
 
+/// Represents a single piece that has a shape and body made out of segments
 pub struct Tetromino {
     shape: Shape,
     pub body: Vec<Segment>,
-    // velocity: f32, // the speed of fall is probably better mananged by the system
 }
 
 impl From<Shape> for Tetromino {
+    /// Generate body at the starting position from a shape
     fn from(shape: Shape) -> Self {
         Self {
             body: Tetromino::generate_body(&shape),
@@ -126,13 +131,16 @@ impl From<Shape> for Tetromino {
 }
 
 impl Tetromino {
+    /// Create a new piece with a random shape
     pub fn new() -> Self {
         let shape: Shape = Tetromino::generate_shape().unwrap_or(Shape::I);
-        // let shape = Shape::S;
-        let body = Tetromino::generate_body(&shape);
-        Self { shape, body }
+        Self {
+            body: Self::generate_body(&shape),
+            shape,
+        }
     }
 
+    /// Translate a piece
     pub fn translate(&mut self, x: i16, y: i16) {
         for seg in self.body.iter_mut() {
             seg.x += x;
@@ -140,6 +148,7 @@ impl Tetromino {
         }
     }
 
+    /// Move by a single step or rotate the piece
     pub fn move_to(&mut self, dir: Motion, base: &Vec<Segment>) {
         match dir {
             Motion::Left => {
@@ -188,12 +197,14 @@ impl Tetromino {
         }
     }
 
+    /// Implements the downward motion
     pub fn update(&mut self) {
         for seg in self.body.iter_mut() {
             seg.y += 1;
         }
     }
 
+    /// Draw the figure using simple rectangles
     pub fn draw(&self, ctx: &mut Context) -> GameResult<()> {
         for seg in self.body.iter() {
             let rectangle = graphics::Mesh::new_rectangle(
@@ -207,6 +218,7 @@ impl Tetromino {
         Ok(())
     }
 
+    /// Clone body of a piece
     pub fn clone_body(&self) -> Vec<Segment> {
         self.body.clone()
     }
@@ -239,6 +251,7 @@ impl Tetromino {
         .collect()
     }
 
+    // Get the central segment around which the piece rotates
     fn get_central_segment(&self) -> Option<Segment> {
         match self.shape {
             Shape::O => None,
@@ -246,6 +259,7 @@ impl Tetromino {
         }
     }
 
+    // Implements kick from a wall if piece's segment is out of the well after rotation
     fn kickback(&mut self) {
         if self.body.iter().any(|seg| seg.x < 0) {
             let kick = self.body.iter().min_by_key(|seg| seg.x).unwrap();
