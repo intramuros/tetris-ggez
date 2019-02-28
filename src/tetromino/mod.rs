@@ -130,8 +130,14 @@ impl Tetromino {
         let shape: Shape = Tetromino::generate_shape().unwrap_or(Shape::I);
         // let shape = Shape::S;
         let body = Tetromino::generate_body(&shape);
-        println!("generating tetromino: shape - {:?}", shape);
         Self { shape, body }
+    }
+
+    pub fn translate(&mut self, x: i16, y: i16) {
+        for seg in self.body.iter_mut() {
+            seg.x += x;
+            seg.y += y;
+        }
     }
 
     pub fn move_to(&mut self, dir: Motion, base: &Vec<Segment>) {
@@ -200,6 +206,7 @@ impl Tetromino {
         }
         Ok(())
     }
+
     pub fn clone_body(&self) -> Vec<Segment> {
         self.body.clone()
     }

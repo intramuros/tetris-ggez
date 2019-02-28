@@ -1,5 +1,5 @@
 use ggez::event::{KeyCode, KeyMods};
-use ggez::graphics::Color;
+
 use ggez::{event, graphics, Context, GameResult};
 use rand::Rng;
 use std::collections::{HashSet, VecDeque};
@@ -22,9 +22,6 @@ pub struct GameState {
 
 impl GameState {
     pub fn new() -> Self {
-        // let ghost_layer = (0..=GRID_SIZE.0)
-        //     .map(|x| Segment::new((x, GRID_SIZE.1 - 1).into()))
-        //     .collect();
         let mut rng = rand::thread_rng();
         let bag: VecDeque<Shape> = (0..50).map(|_| rng.gen_range(0, 7).into()).collect();
         Self {
@@ -66,12 +63,13 @@ impl GameState {
     }
 
     fn hit_ceiling(&self) -> bool {
-        self.cur_fig.body.iter().any(|seg| seg.y == 0 as i16)
-            && self
-                .cur_fig
-                .body
-                .iter()
-                .any(|seg| self.ghost_layer.contains(&seg))
+        self.cur_fig.body.iter().any(|seg| seg.y == 0)
+            && self.ghost_layer.iter().any(|g_elem| {
+                self.cur_fig
+                    .body
+                    .iter()
+                    .any(|seg| g_elem.x == seg.x && g_elem.y == seg.y)
+            })
     }
 
     fn burn_full_rows(&mut self) {
@@ -132,7 +130,9 @@ impl event::EventHandler for GameState {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
         let millis_per_update: u64 = (1.0 / self.updates_per_second * 1000.0) as u64;
         // if Instant::now() - self.move_update >= Duration::from_millis(60) && !self.game_over {
-        if Instant::now() - self.fall_update >= Duration::from_millis(millis_per_update) {
+        if Instant::now() - self.fall_update >= Duration::from_millis(millis_per_update)
+            && !self.game_over
+        {
             if self.hit_ceiling() {
                 println!("Hit ceiling");
                 self.game_over = true;
@@ -173,6 +173,38 @@ impl event::EventHandler for GameState {
             (32, 32, 32, 255).into(),
         )?;
         graphics::draw(ctx, &rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
+        // draw a grid
+        for j in 0..GRID_SIZE.1 {
+            if j < GRID_SIZE.0 {
+                let points_vert = [
+                    ggez::mint::Point2 {
+                        x: (j * GRID_CELL_SIZE.0) as f32,
+                        y: 0.0,
+                    },
+                    ggez::mint::Point2 {
+                        x: (j * GRID_CELL_SIZE.0) as f32,
+                        y: (GRID_CELL_SIZE.1 * GRID_SIZE.1) as f32,
+                    },
+                ];
+                let line =
+                    graphics::Mesh::new_line(ctx, &points_vert, 1.0, [0.3, 0.3, 0.3, 0.7].into())?;
+                graphics::draw(ctx, &line, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
+            }
+            let points_hor = [
+                ggez::mint::Point2 {
+                    y: (j * GRID_CELL_SIZE.1) as f32,
+                    x: 0.0,
+                },
+                ggez::mint::Point2 {
+                    y: (j * GRID_CELL_SIZE.1) as f32,
+                    x: (GRID_CELL_SIZE.0 * GRID_SIZE.0) as f32,
+                },
+            ];
+            let line =
+                graphics::Mesh::new_line(ctx, &points_hor, 1.0, [0.3, 0.3, 0.3, 0.7].into())?;
+            graphics::draw(ctx, &line, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
+        }
+
         self.cur_fig.draw(ctx)?;
 
         // draw the base
@@ -185,18 +217,41 @@ impl event::EventHandler for GameState {
             )?;
             graphics::draw(ctx, &rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
         }
+
+        // draw Score
         let title_position = ggez::mint::Point2 {
-            x: (GRID_SIZE.0 * GRID_CELL_SIZE.0 + GRID_CELL_SIZE.0) as f32,
+            x: (GRID_SIZE.0 * GRID_CELL_SIZE.0 + (7 * GRID_CELL_SIZE.0) / 3) as f32,
             y: GRID_SIZE.1 as f32 + 2.,
         };
         let point_position = ggez::mint::Point2 {
             x: title_position.x + 16.,
             y: title_position.y + 32.,
         };
-        let points_text = graphics::Text::new("Points");
+
+        let points_text = graphics::Text::new("Score");
         let points = graphics::Text::new(self.points.to_string());
         graphics::draw(ctx, &points_text, (title_position,))?;
         graphics::draw(ctx, &points, (point_position,))?;
+
+        // draw next figure
+        let next_fig_text_pos = ggez::mint::Point2 {
+            x: title_position.x + 10.0,
+            y: point_position.y + 70.0,
+        };
+        let next_text = graphics::Text::new("Next");
+        graphics::draw(ctx, &next_text, (next_fig_text_pos,))?;
+        let next_shape = **self.bag.iter().peekable().peek().unwrap();
+        let mut next_fig = Tetromino::from(next_shape);
+        next_fig.translate(8, 8);
+        for seg in next_fig.body.iter() {
+            let rectangle = graphics::Mesh::new_rectangle(
+                ctx,
+                graphics::DrawMode::fill(),
+                seg.into(),
+                seg.color.into(),
+            )?;
+            graphics::draw(ctx, &rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
+        }
 
         graphics::present(ctx)?;
 
