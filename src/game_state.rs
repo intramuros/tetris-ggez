@@ -20,10 +20,13 @@ pub struct GameState {
     update_slow: f32,
 }
 
+/// Represents main part of the game where most of the logic is implemented
 impl GameState {
+    /// Create a new game with default settings
     pub fn new() -> Self {
         let mut rng = rand::thread_rng();
-        let bag: VecDeque<Shape> = (0..50).map(|_| rng.gen_range(0, 7).into()).collect();
+        // make a bag of pieces that are replenished on the fly
+        let bag: VecDeque<Shape> = (0..10).map(|_| rng.gen_range(0, 7).into()).collect();
         Self {
             base: Vec::new(),
             ghost_layer: HashSet::new(),
@@ -126,8 +129,15 @@ impl GameState {
     }
 }
 
+/// Implementation of the EventHandler for out GameState
+///
+/// Two mandatory methods (update() and draw()) are implemented along with
+/// handling key presses to rotate and move pieces.
 impl event::EventHandler for GameState {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
+        if self.points % 100 == 0 {
+            self.update_slow += 0.1;
+        }
         let millis_per_update: u64 = (1.0 / self.updates_per_second * 1000.0) as u64;
         // if Instant::now() - self.move_update >= Duration::from_millis(60) && !self.game_over {
         if Instant::now() - self.fall_update >= Duration::from_millis(millis_per_update)
@@ -141,10 +151,7 @@ impl event::EventHandler for GameState {
                 self.base.extend(self.cur_fig.clone_body());
                 self.burn_full_rows();
                 println!("{}", self.points);
-                // dbg!(&self.base[0].pos);
-                // dbg!(&self.ghost_layer);
                 self.updates_per_second = self.update_slow;
-                // self.cur_fig = Tetromino::new();
                 self.cur_fig = Tetromino::from(self.bag.pop_front().unwrap_or_default());
                 self.add_shape_to_bag();
             } else {
@@ -154,7 +161,6 @@ impl event::EventHandler for GameState {
             }
             // self.move_update = Instant::now();
         }
-        // }
         Ok(())
     }
 
@@ -260,6 +266,7 @@ impl event::EventHandler for GameState {
         Ok(())
     }
 
+    /// Listens to key events, if certain keys are pressed perform prescribed motions
     fn key_down_event(
         &mut self,
         _ctx: &mut Context,
