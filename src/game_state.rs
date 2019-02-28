@@ -135,9 +135,10 @@ impl GameState {
 /// handling key presses to rotate and move pieces.
 impl event::EventHandler for GameState {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
-        if self.points % 100 == 0 {
-            self.update_slow += 0.1;
-        }
+        // TODO: Implement acceleration <28-02-19, me> //
+        // if self.points % {
+        //     self.update_slow += 0.1;
+        // }
         let millis_per_update: u64 = (1.0 / self.updates_per_second * 1000.0) as u64;
         // if Instant::now() - self.move_update >= Duration::from_millis(60) && !self.game_over {
         if Instant::now() - self.fall_update >= Duration::from_millis(millis_per_update)
