@@ -18,6 +18,7 @@ pub struct GameState {
     updates_per_second: f32,
     updates_fast: f32,
     update_slow: f32,
+    paused: bool,
 }
 
 /// Represents main part of the game where most of the logic is implemented
@@ -38,6 +39,7 @@ impl GameState {
             updates_per_second: 2.0,
             updates_fast: 40.0,
             update_slow: 1.5,
+            paused: false,
         }
     }
 
@@ -135,14 +137,19 @@ impl GameState {
 /// handling key presses to rotate and move pieces.
 impl event::EventHandler for GameState {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
-        // TODO: Implement acceleration <28-02-19, me> //
-        // if self.points % {
-        //     self.update_slow += 0.1;
-        // }
+        self.update_slow = match self.points {
+            0...100 => 1.2,
+            100...200 => 1.6,
+            200...300 => 2.0,
+            300...400 => 3.0,
+            400...500 => 4.0,
+            500...600 => 5.0,
+            _ => 6.0,
+        };
         let millis_per_update: u64 = (1.0 / self.updates_per_second * 1000.0) as u64;
-        // if Instant::now() - self.move_update >= Duration::from_millis(60) && !self.game_over {
         if Instant::now() - self.fall_update >= Duration::from_millis(millis_per_update)
             && !self.game_over
+            && !self.paused
         {
             if self.hit_ceiling() {
                 println!("Hit ceiling");
@@ -267,7 +274,7 @@ impl event::EventHandler for GameState {
         Ok(())
     }
 
-    /// Listens to key events, if certain keys are pressed perform prescribed motions
+    /// Listen to key events, if certain keys are pressed perform prescribed motions
     fn key_down_event(
         &mut self,
         _ctx: &mut Context,
@@ -281,6 +288,7 @@ impl event::EventHandler for GameState {
             KeyCode::Up => self.cur_fig.move_to(Motion::RotateLeft, &self.base),
             // KeyCode::Down => self.cur_fig.move_to(Motion::RotateRight, &self.base),
             KeyCode::Down => self.accelerate(), //self.updates_per_second = self.updates_fast,
+            KeyCode::Space => self.paused = !self.paused,
             KeyCode::Escape => ggez::quit(_ctx),
             _ => (),
         };
