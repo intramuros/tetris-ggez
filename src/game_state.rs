@@ -7,7 +7,7 @@ use std::collections::{HashSet, VecDeque};
 use crate::tetromino::*;
 use std::time::{Duration, Instant};
 
-pub struct GameState {
+pub(crate) struct GameState {
     base: Vec<Segment>,
     ghost_layer: HashSet<Segment>,
     bag: VecDeque<Shape>,
@@ -24,7 +24,7 @@ pub struct GameState {
 /// Represents main part of the game where most of the logic is implemented
 impl GameState {
     /// Create a new game with default settings
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let mut rng = rand::thread_rng();
         // make a bag of pieces that are replenished on the fly
         let bag: VecDeque<Shape> = (0..10).map(|_| rng.gen_range(0, 7).into()).collect();
@@ -77,6 +77,8 @@ impl GameState {
             })
     }
 
+    /// Check if any rows are full and burn them. Add points based on how many
+    /// rows were burnt, extra rows give bonus points.
     fn burn_full_rows(&mut self) {
         let mut burned = 0;
         for y_coord in 0..GRID_SIZE.1 {
