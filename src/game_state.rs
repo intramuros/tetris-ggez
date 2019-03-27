@@ -148,6 +148,7 @@ impl event::EventHandler for GameState {
             500...600 => 5.0,
             _ => 6.0,
         };
+
         let millis_per_update: u64 = (1.0 / self.updates_per_second * 1000.0) as u64;
         if Instant::now() - self.fall_update >= Duration::from_millis(millis_per_update)
             && !self.game_over
@@ -244,6 +245,7 @@ impl event::EventHandler for GameState {
             y: title_position.y + 32.,
         };
 
+        // let points_text = graphics::Text::new("Score");
         let points_text = graphics::Text::new("Score");
         let points = graphics::Text::new(self.points.to_string());
         graphics::draw(ctx, &points_text, (title_position,))?;

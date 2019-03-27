@@ -22,7 +22,7 @@ impl From<&Segment> for graphics::Rect {
     }
 }
 
-/// Represents a motion of a piece
+/// Represents motion of a piece
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Motion {
     Left,
@@ -30,7 +30,7 @@ pub(crate) enum Motion {
     RotateLeft,
 }
 
-/// Represents piece's shape, 7 classical tetromino shapes are used
+/// Represents piece's shape, 7 classic tetromino shapes are used
 #[derive(Debug, Copy, Clone)]
 pub(crate) enum Shape {
     L,
@@ -58,7 +58,7 @@ impl Default for Shape {
 }
 
 impl Segment {
-    /// Create a new segment out of position coordinates and ascribe some color
+    /// Create new segment from position coordinates and add color
     pub(crate) fn new(pos: (i16, i16), color: ColorTuple) -> Self {
         Self {
             x: pos.0,
@@ -67,7 +67,7 @@ impl Segment {
         }
     }
 
-    /// Add extra segment of top to signify a ghost cell
+    /// Add an extra segment as a ghost cell
     pub(crate) fn add_ghost_layer(&self) -> Self {
         Self {
             x: self.x,
@@ -123,13 +123,13 @@ impl From<Shape> for Tetromino {
 }
 
 impl Tetromino {
-    /// Create a new piece with a random shape
+    /// Create new piece with a random shape
     pub(crate) fn new() -> Self {
         let shape: Shape = Tetromino::generate_shape().unwrap_or(Shape::I);
         Self::from(shape)
     }
 
-    /// Translate a piece
+    /// Translate piece
     pub(crate) fn translate(&mut self, x: i16, y: i16) {
         for seg in self.body.iter_mut() {
             seg.x += x;
@@ -166,22 +166,9 @@ impl Tetromino {
                     }
                 }
             }
-            // Motion::Down => {
-            //     if self.body.iter().all(|elem| {
-            //         elem.y > -1
-            //             && elem.y < GRID_SIZE.1 - 2
-            //             && !base.iter().any(|seg| (seg.y - 2) == elem.y)
-            //     }) {
-            //         for seg in self.body.iter_mut() {
-            //             seg.y += 2;
-            //         }
-            //     }
-            // }
             Motion::RotateLeft => {
                 self.rotate_left(base);
-            } // Motion::RotateRight => {
-              //     self.rotate_right(base);
-              // }
+            }
         }
     }
 
@@ -220,7 +207,8 @@ impl Tetromino {
             3 => Some(Shape::Z),
             4 => Some(Shape::I),
             5 => Some(Shape::T),
-            _ => Some(Shape::J),
+            6 => Some(Shape::J),
+            _ => unreachable!(),
         }
     }
 
@@ -239,7 +227,7 @@ impl Tetromino {
         .collect()
     }
 
-    // Get the central segment around which the piece rotates
+    /// Return the central segment around which a piece rotates
     fn get_central_segment(&self) -> Option<Segment> {
         match self.shape {
             Shape::O => None,
@@ -247,7 +235,8 @@ impl Tetromino {
         }
     }
 
-    /// Implements kick from a wall if a piece segment is out of the well after rotation
+    /// Implements kick from a wall if a piece segment left the well as a result
+    /// of rotation
     fn kickback(&mut self) {
         if self.body.iter().any(|seg| seg.x < 0) {
             let kick = self.body.iter().min_by_key(|seg| seg.x).unwrap();
@@ -287,28 +276,6 @@ impl Tetromino {
             }
         }
     }
-
-    // fn rotate_right(&mut self, base: &Vec<Segment>) {
-    //     if let Some(central_segment) = self.get_central_segment() {
-    //         // get the translation
-    //         let (x, y) = (-central_segment.x, -central_segment.y);
-    //         // translate, rotate and translate the body back
-    //         let new_body: Vec<Segment> = self
-    //             .body
-    //             .iter()
-    //             .map(|seg| Segment::new(((seg.y + y) - x, -1 * (seg.x + x) - y), seg.color))
-    //             .collect();
-    //         if !new_body.iter().any(|seg| {
-    //             seg.y >= GRID_SIZE.1
-    //                 || base
-    //                     .iter()
-    //                     .any(|b_elem| b_elem.x == seg.x && b_elem.y == seg.y)
-    //         }) {
-    //             self.body = new_body;
-    //             self.kickback();
-    //         }
-    //     }
-    // }
 }
 
 #[cfg(test)]
@@ -332,31 +299,12 @@ mod tests {
         let base = Vec::new();
         let shape = Shape::I;
         let mut piece = Tetromino::from(shape);
-        let orig_piece = piece.clone();
         let body: Vec<Segment> = vec![(0, -1), (0, 0), (0, 1), (0, 2)]
             .into_iter()
             .map(|v| Segment::new(v, (0, 0, 0, 0)))
             .collect();
         piece.body = body;
         piece.rotate_left(&base);
-        println!("{:?}", piece);
-
-        assert_eq!(2, 3);
-        // if self.body.iter().any(|seg| seg.x < 0) {
-        //     let kick = self.body.iter().min_by_key(|seg| seg.x).unwrap();
-        //     self.body = self
-        //         .body
-        //         .iter()
-        //         .map(|seg| Segment::new((seg.x - kick.x, seg.y), seg.color))
-        //         .collect();
-        // } else if self.body.iter().any(|seg| seg.x >= GRID_SIZE.0) {
-        //     let kick = self.body.iter().max_by_key(|seg| seg.x).unwrap();
-        //     self.body = self
-        //         .body
-        //         .iter()
-        //         .map(|seg| Segment::new((seg.x - (kick.x - GRID_SIZE.0 + 1), seg.y), seg.color))
-        //         .collect();
-        // }
     }
 
 }
