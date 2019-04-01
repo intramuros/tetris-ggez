@@ -157,6 +157,7 @@ impl event::EventHandler for GameState {
             if self.hit_ceiling() {
                 println!("Hit ceiling");
                 self.game_over = true;
+                return Ok(());
             } else if self.cur_fig_landed() {
                 self.update_ghost_layer();
                 self.base.extend(self.cur_fig.clone_body());
@@ -286,15 +287,18 @@ impl event::EventHandler for GameState {
         _keymod: KeyMods,
         _repeat: bool,
     ) {
-        match keycode {
-            KeyCode::Left => self.cur_fig.move_to(Motion::Left, &self.base),
-            KeyCode::Right => self.cur_fig.move_to(Motion::Right, &self.base),
-            KeyCode::Up => self.cur_fig.move_to(Motion::RotateLeft, &self.base),
-            // KeyCode::Down => self.cur_fig.move_to(Motion::RotateRight, &self.base),
-            KeyCode::Down => self.accelerate(), //self.updates_per_second = self.updates_fast,
-            KeyCode::Space => self.paused = !self.paused,
-            KeyCode::Escape => ggez::quit(_ctx),
-            _ => (),
-        };
+        if keycode == KeyCode::Escape {
+            ggez::quit(_ctx);
+        }
+        if !self.game_over {
+            match keycode {
+                KeyCode::Left => self.cur_fig.move_to(Motion::Left, &self.base),
+                KeyCode::Right => self.cur_fig.move_to(Motion::Right, &self.base),
+                KeyCode::Up => self.cur_fig.move_to(Motion::RotateLeft, &self.base),
+                KeyCode::Down => self.accelerate(), //self.updates_per_second = self.updates_fast,
+                KeyCode::Space => self.paused = !self.paused,
+                _ => (),
+            };
+        }
     }
 }
