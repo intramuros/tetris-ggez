@@ -284,6 +284,7 @@ mod tests {
 
     #[test]
 
+    /// Test whether piece is translated appropriately
     fn test_translate() {
         let mut piece = Tetromino::new();
         let orig_piece = piece.clone();
