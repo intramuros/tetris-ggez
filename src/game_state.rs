@@ -44,16 +44,13 @@ impl GameState {
     }
 
     fn cur_fig_landed(&self) -> bool {
-        if self.cur_fig.body.iter().any(|elem| {
+        self.cur_fig.body.iter().any(|elem| {
             elem.y == GRID_SIZE.1 - 1
                 || self
                     .ghost_layer
                     .iter()
                     .any(|g_elem| g_elem.x == elem.x && g_elem.y == elem.y)
-        }) {
-            return true;
-        }
-        false
+        })
     }
 
     fn add_shape_to_bag(&mut self) {
@@ -85,18 +82,11 @@ impl GameState {
             if self.base.iter().filter(|seg| seg.y == y_coord).count() == 10 {
                 burned += 1;
                 self.base.retain(|seg| seg.y != y_coord);
-                self.base = self
-                    .base
-                    .iter()
-                    .map(|seg| {
-                        // dbg!(&seg);
-                        if seg.y < y_coord {
-                            Segment::new((seg.x, seg.y + 1), seg.color)
-                        } else {
-                            seg.clone()
-                        }
-                    })
-                    .collect();
+                self.base.iter_mut().for_each(|seg| {
+                    if seg.y < y_coord {
+                        *seg = Segment::new((seg.x, seg.y + 1), seg.color)
+                    }
+                });
             }
         }
 

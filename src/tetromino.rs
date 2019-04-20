@@ -125,7 +125,7 @@ impl From<Shape> for Tetromino {
 impl Tetromino {
     /// Create new piece with a random shape
     pub(crate) fn new() -> Self {
-        let shape: Shape = Tetromino::generate_shape().unwrap_or(Shape::I);
+        let shape: Shape = Tetromino::generate_shape().unwrap();
         Self::from(shape)
     }
 
@@ -148,9 +148,7 @@ impl Tetromino {
                             .iter()
                             .any(|b_elem| b_elem.x == (elem.x - 1) && b_elem.y == elem.y)
                 }) {
-                    for seg in self.body.iter_mut() {
-                        seg.x -= 1;
-                    }
+                    self.body.iter_mut().for_each(|seg| seg.x -= 1);
                 }
             }
             Motion::Right => {
@@ -161,9 +159,7 @@ impl Tetromino {
                             .iter()
                             .any(|b_elem| b_elem.x == (elem.x + 1) && b_elem.y == elem.y)
                 }) {
-                    for seg in self.body.iter_mut() {
-                        seg.x += 1;
-                    }
+                    self.body.iter_mut().for_each(|seg| seg.x += 1);
                 }
             }
             Motion::RotateLeft => {
@@ -239,19 +235,15 @@ impl Tetromino {
     /// of rotation
     fn kickback(&mut self) {
         if self.body.iter().any(|seg| seg.x < 0) {
-            let kick = self.body.iter().min_by_key(|seg| seg.x).unwrap();
-            self.body = self
-                .body
-                .iter()
-                .map(|seg| Segment::new((seg.x - kick.x, seg.y), seg.color))
-                .collect();
+            let kick = self.body.iter().min_by_key(|seg| seg.x).unwrap().x;
+            self.body
+                .iter_mut()
+                .for_each(|seg| *seg = Segment::new((seg.x - kick, seg.y), seg.color));
         } else if self.body.iter().any(|seg| seg.x >= GRID_SIZE.0) {
-            let kick = self.body.iter().max_by_key(|seg| seg.x).unwrap();
-            self.body = self
-                .body
-                .iter()
-                .map(|seg| Segment::new((seg.x - (kick.x - GRID_SIZE.0 + 1), seg.y), seg.color))
-                .collect();
+            let kick = self.body.iter().max_by_key(|seg| seg.x).unwrap().x;
+            self.body.iter_mut().for_each(|seg| {
+                *seg = Segment::new((seg.x - (kick - GRID_SIZE.0 + 1), seg.y), seg.color)
+            });
         }
     }
 
